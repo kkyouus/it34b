@@ -1,4 +1,4 @@
-<h1>CREATED BY RENZ BUTTERBONA</h1>
+<h1>CREATED BY AKO SI DOGGIE</h1>
 <?php
 require '../../config/config.php';
 
