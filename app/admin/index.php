@@ -1,7 +1,6 @@
 <h1>CREATED BY RENZ BUTTERBONA</h1>
 <?php
 require '../../config/config.php';
-require '../../config/functions.php';
 
 requireRole('admin');
 
