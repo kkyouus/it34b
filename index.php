@@ -1,21 +1,54 @@
 <?php
-require_once('config/config.php');
+require_once 'config/config.php';
 
-$user_id = "root";
-$user_email = "root";
 
-$buttons = [
-    'login',
-    'logout',
-    'create Record',
-    'update Record',
-    'delete Record',
-    'view Record',
-    'upload File',
-    'Download',
-    'Search',
-    'Generate Report',
-];
+if(isset($_SESSION['user_id'])){
+    header('Location: ' . BASE_URL . '/app/' . $_SESSION['user_role'] . '/index.php');
+    exit;
+}
+
+$error='';
+
+if($_SERVER['REQUEST_METHOD'] === 'POST'){
+    $login = trim($_POST['login'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    $error = 'Invalid login credentials';
+
+    if ($login==='' || $password ===''){
+
+        // Log incomplete login attempt
+        logActivity($pdo,null,$login,'login','failed');
+
+    } else {
+
+    $result = loginUser($pdo,$login,$password);
+
+    if($result===true){
+        // Log incomplete login attempt
+            logActivity($pdo,$_SESSION['user_id'],
+            $_SESSION['user_email'],
+            'login',
+            'success'
+        );
+
+        echo 'Location: ' . BASE_URL . '/app/' . $_SESSION['user_role'] . '/index.php';
+        header('Location: ' . BASE_URL . '/app/' . $_SESSION['user_role'] . '/index.php');
+        exit;
+
+    }elseif($result=== 'active_session'){
+        echo 'This account is already logged in on another device';
+
+        $error = 'This account is already logged in on another device';
+    } else{
+
+        $error = 'Invalid login credentials';
+
+    }
+
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -23,56 +56,30 @@ $buttons = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Activity Logger Test</title>
+    <title>Login</title>
 </head>
 <body>
 
-<table border="1" cellpadding="10">
-    <tr>
-        <th>Action</th>
-        <th>Test</th>
-    </tr>
-
-    <?php foreach ($buttons as $button): ?>
-    <tr>
-        <td><?= htmlspecialchars($button); ?></td>
-        <td>
-            <form method="post">
-                <input
-                    type="hidden"
-                    name="action"
-                    value="<?= htmlspecialchars($button); ?>"
-                >
-                <button type="submit">Test</button>
-            </form>
-        </td>
-    </tr>
-    <?php endforeach; ?>
-
-</table>
-
-<?php
-if($_SERVER['REQUEST_METHOD'] === 'POST'){
-
-$action = $_POST['action'] ?? "test_activity";
-
-$status = random_int(0,1) === 1? 'success' : 'failed';
-
-$success = logActivity(
-    $pdo,
-    $user_id,
-    $user_email,
-    $action,
-    $status
-);
-if($success){
-    echo "<p> Activity: ". htmlspecialchars($action) .
-    "status: ". htmlspecialchars($status) .
-     " logged successfully!</p>";
+<form method="POST">
+    <label>Username or Email</label>
+    <input type= "text"
+            name="login"
+            required>
+        <br>
+        <br>
+        <label>Password</label>
+        <input type ="password"
+            name="password"
+            required>
+        <br>
+        <button type="submit">Sign In</button>
 
 
-} else {
-    echo "Failed to insert activity log!";
-}
-}
-?>
+</form>
+ 
+<?php if(isset($_GET['timeout'])): ?>
+    <p>Your session has expired due to inactivity. Please log in again</p>
+<?php endif; ?>
+
+</body>
+</html>
