@@ -1,16 +1,31 @@
 <?php
+
 require '../../config/config.php';
 
 requireRole('admin');
 
-$section = $_GET['section'] ?? '';
+/*
+logActivity(
+    $pdo,
+    $_SESSION['user_id'],
+    $_SESSION['user_email'],
+    'view_activity_logs',
+    'success'
+);
+*/
 
+// Determine current section
+$section = $_GET['section'] ?? 'activity-logs';
+
+// Determine CRUD Operation
 $action = $_GET['action'] ?? '';
 
-if ($section === 'activity-logs'){
-        // Activity Logs Query
-        $stmt = $pdo->query("
-        SELECT * 
+// Fetch data based on current section
+if ($section === 'activity-logs') {
+
+    // Activity Logs Query
+    $stmt = $pdo->query("
+        SELECT *
         FROM activity_logs
         ORDER BY activity_log_created_at DESC
     ");
@@ -39,36 +54,131 @@ if ($section === 'activity-logs'){
     $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+if ($action === 'export') {
+
+    if ($section === 'activity-logs') {
+
+        $stmt = $pdo->query("
+            SELECT
+                activity_log_id,
+                user_id,
+                user_email,
+                activity_log_action,
+                activity_log_status,
+                activity_log_ip_address,
+                activity_log_user_agent,
+                activity_log_created_at
+            FROM activity_logs
+            ORDER BY activity_log_created_at DESC
+        ");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        logActivity(
+            $pdo,
+            $_SESSION['user_id'],
+            $_SESSION['user_email'],
+            'export_activity_logs',
+            'success'
+        );
+
+        exportCsv(
+            'activity_logs',
+            [
+                'Record ID', 'User ID', 'User Email', 'Action',
+                'Status', 'IP Address', 'User Agent', 'Date & Time',
+            ],
+            $rows
+        );
+    }
+
+    if ($section === 'user-sessions') {
+
+        $stmt = $pdo->query("
+            SELECT
+                us.session_id,
+                us.user_id,
+                u.user_username,
+                u.user_email,
+                u.user_role,
+                us.session_start,
+                us.session_end,
+                us.session_duration
+            FROM user_sessions us
+            INNER JOIN users u ON us.user_id = u.user_id
+            ORDER BY us.session_start DESC
+        ");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as &$r) {
+            $r['session_end'] = $r['session_end'] ?: 'Active';
+            if ($r['session_duration'] !== null) {
+                $s       = (int) $r['session_duration'];
+                $hours   = floor($s / 3600);
+                $minutes = floor(($s % 3600) / 60);
+                $seconds = $s % 60;
+                $r['session_duration'] = sprintf(
+                    '%02d hr %02d min %02d sec',
+                    $hours, $minutes, $seconds
+                );
+            } else {
+                $r['session_duration'] = 'Active';
+            }
+        }
+        unset($r);
+
+        logActivity(
+            $pdo,
+            $_SESSION['user_id'],
+            $_SESSION['user_email'],
+            'export_user_sessions',
+            'success'
+        );
+
+        exportCsv(
+            'user_sessions',
+            [
+                'Session ID', 'User ID', 'Username', 'Email',
+                'Role', 'Session Start', 'Session End', 'Duration',
+            ],
+            $rows
+        );
+    }
+}
+
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=, initial-scale=1.0">
-
-    <title>Document</title>
-   
-       
-   
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
 </head>
-<body>
-        <h1>Welcome, Admin!</h1>
 
-        <a href="../../auth/signout.php" class="">
-            Sign Out
-        </a>
-        <hr>
+<body>
+
+    <h1>Welcome Admin</h1>
+
+    <form method="POST" action="../../auth/signout.php">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generateCsrfToken()) ?>" >
+        <button type="submit"> Sign Out </button>
+    </form>
+    
+    <hr>
 
     <nav>
-        <a href="index.php?section=activity-logs" class="">Activity Logs </a>
-        <a href="index.php?section=user-sessions" class="">User Sessions </a>
+        <a href="index.php?section=activity-logs">Activity Logs |</a>
+        <a href="index.php?section=user-sessions">User Sessions |</a>
     </nav>
 
     <?php if ($section === 'activity-logs'): ?>
 
-        <h4>Activity Logs</h4>
+        <h4>Activity Logs
+            <a href="index.php?section=activity-logs&amp;action=export">Export CSV</a>
+        </h4>
 
-        <table>
+        <table id="activityTable" border="1" cellpadding="5" cellspacing="0">
 
             <thead>
                 <tr>
@@ -129,11 +239,14 @@ if ($section === 'activity-logs'){
 
     <?php endif; ?>
 
+
     <?php if ($section === 'user-sessions'): ?>
 
-        <h4>User Sessions</h4>
+        <h4>User Sessions
+            <a href="index.php?section=user-sessions&amp;action=export">Export CSV</a>
+        </h4>
 
-        <table>
+        <table id="sessionTable" border="1" cellpadding="5" cellspacing="0">
 
             <thead>
                 <tr>
